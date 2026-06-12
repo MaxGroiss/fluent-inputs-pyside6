@@ -35,7 +35,8 @@ Every widget takes a `dark_mode` flag (and exposes it as a property). The line e
 ![fcbds](fcb_search_dm.png)
 ![fcbwse](fcb_search_edit_wm.png)
 ![fcbdse](fcb_search_edit_dm.png)
-
+### Spin Box
+![fsb](fsb_wm.png)
 
 
 
