@@ -24,6 +24,22 @@ Every widget takes a `dark_mode` flag (and exposes it as a property). The line e
 
 > **Note:** These are the standalone versions. The originals in my app also support inline spellchecking (via a private dictionary service); that feature has been removed here so the widgets stay dependency-free.
 
+## Preview
+### Context Menu
+![fcmw](fcm_wm.png)
+![fcmd](fcm_dm.png)
+### Combo Box
+![fcbw](fcb_wm.png)
+![fcbd](fcb_dm.png)
+![fcbws](fcb_search_wm.png)
+![fcbds](fcb_search_dm.png)
+![fcbwse](fcb_search_edit_wm.png)
+![fcbdse](fcb_search_edit_dm.png)
+
+
+
+
+
 ## Install
 
 Copy the files you want into your project (keep `fluent_context_menu.py` next to the text widgets):
