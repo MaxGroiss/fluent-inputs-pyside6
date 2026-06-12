@@ -55,6 +55,7 @@ Features
 -   Full SVG / QIcon support with optional theme-aware colorisation.
 -   Light / dark theme via simple ``dark_mode`` bool (constructor or property).
 -   Icons, keyboard-shortcut labels, disabled state, checkable items.
+-   Radio-button groups via ``exclusive_group`` (one checked at a time).
 -   Submenus (nested ``FluentContextMenu``).
 -   Attach to **any** ``QWidget`` with one call.
 -   Correct popup lifecycle: auto-close on outside click, Escape key,
@@ -228,13 +229,17 @@ class MenuItemDef:
     mutate state (e.g. ``item.checked``) after the menu has been shown.
 
     Attributes:
-        text:      Display label.
-        shortcut:  Human-readable shortcut string (display only).
-        icon:      Optional ``QIcon`` (supports SVG).
-        callback:  Slot called on click.
-        enabled:   Whether the item is interactive.
-        checkable: Whether a check indicator is shown.
-        checked:   Current check state.
+        text:            Display label.
+        shortcut:        Human-readable shortcut string (display only).
+        icon:            Optional ``QIcon`` (supports SVG).
+        callback:        Slot called on click.
+        enabled:         Whether the item is interactive.
+        checkable:       Whether a check indicator is shown.
+        checked:         Current check state.
+        exclusive_group: Optional group name.  Checkable items that share
+                         the same group behave like radio buttons -- only
+                         one can be checked at a time and it never toggles
+                         back off.
     """
 
     kind: _ItemKind = _ItemKind.ACTION
@@ -245,6 +250,7 @@ class MenuItemDef:
     enabled: bool = True
     checkable: bool = False
     checked: bool = False
+    exclusive_group: Optional[str] = None
     submenu: Optional["FluentContextMenu"] = None
 
 
@@ -441,6 +447,19 @@ class _MenuItemWidget(QWidget):
     # -- mouse interaction ---------------------------------------------------
 
     def enterEvent(self, _event) -> None:  # noqa: N802
+        # Clear stale hover on siblings.  This fixes ghost highlights that
+        # can linger when a submenu popup stole mouse tracking and the
+        # ``leaveEvent`` for the previous row never fired.
+        parent = self.parentWidget()
+        if parent is not None:
+            for child in parent.children():
+                if (
+                    child is not self
+                    and isinstance(child, _MenuItemWidget)
+                    and child._hovered
+                ):
+                    child._hovered = False
+                    child.update()
         self._hovered = True
         self.update()
 
@@ -460,7 +479,11 @@ class _MenuItemWidget(QWidget):
             self.update()
             if self.isEnabled() and self.rect().contains(event.position().toPoint()):
                 if self._def.checkable:
-                    self._def.checked = not self._def.checked
+                    if self._def.exclusive_group:
+                        # Radio behaviour: always check, never toggle off.
+                        self._def.checked = True
+                    else:
+                        self._def.checked = not self._def.checked
                 self.clicked.emit()
 
 
@@ -645,6 +668,13 @@ class FluentContextMenu(QObject):
         # ... later, after user interaction:
         if grid.checked:
             canvas.show_grid()
+
+    Example -- radio group::
+
+        menu.add_item("Small",  checkable=True, exclusive_group="size")
+        menu.add_item("Medium", checkable=True, checked=True,
+                       exclusive_group="size")
+        menu.add_item("Large",  checkable=True, exclusive_group="size")
     """
 
     action_triggered = Signal(str, object)
@@ -685,6 +715,7 @@ class FluentContextMenu(QObject):
         enabled: bool = True,
         checkable: bool = False,
         checked: bool = False,
+        exclusive_group: Optional[str] = None,
     ) -> MenuItemDef:
         """Add an action item.
 
@@ -697,6 +728,9 @@ class FluentContextMenu(QObject):
             enabled:   Whether the item is interactive.
             checkable: Show a check indicator.
             checked:   Initial check state.
+            exclusive_group: Optional group name.  Checkable items sharing a
+                       group behave like radio buttons -- exactly one stays
+                       checked and clicking never toggles the active one off.
 
         Returns:
             A ``MenuItemDef`` reference.  You can read ``item.checked``
@@ -706,6 +740,7 @@ class FluentContextMenu(QObject):
             kind=_ItemKind.ACTION, text=text, shortcut=shortcut,
             icon=icon, callback=callback, enabled=enabled,
             checkable=checkable, checked=checked,
+            exclusive_group=exclusive_group,
         )
         self._items.append(d)
         self._invalidate()
@@ -812,6 +847,15 @@ class FluentContextMenu(QObject):
         return popup
 
     def _trigger(self, item_def: MenuItemDef, popup: _MenuPopup) -> None:
+        # Enforce exclusive group: uncheck the other members.
+        if item_def.exclusive_group:
+            for other in self._items:
+                if (
+                    other is not item_def
+                    and other.exclusive_group == item_def.exclusive_group
+                    and other.checkable
+                ):
+                    other.checked = False
         popup.close()
         self.action_triggered.emit(item_def.text, item_def)
         if item_def.callback is not None:

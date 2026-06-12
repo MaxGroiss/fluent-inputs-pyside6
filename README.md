@@ -1,214 +1,132 @@
-# Fluent Context Menu for PySide6
+# Fluent Inputs for PySide6
 
 **Disclaimer:** This project is provided as-is, without warranty of any kind. Use it at your own risk. There is no guarantee of continued maintenance, updates, or bug fixes. The author assumes no liability for any issues arising from the use of this code in your projects.
 
-A Windows 11 Fluent Design context menu for PySide6 — built entirely from scratch without `QMenu`.
-
-Uses a frameless translucent popup with `QPainter`-drawn rounded corners and soft drop shadow. No QSS hacks, no rendering artefacts, reliable open/close lifecycle. 
+Windows 11 Fluent Design **input controls** for PySide6 — a line edit, a multi-line text edit, integer/double spin boxes, and a fully custom combobox. All custom-painted with `QPainter`, no native chrome, no QSS hacks.
 
 ![PySide6](https://img.shields.io/badge/PySide6-%E2%89%A5%206.7-blue)
 ![Python](https://img.shields.io/badge/Python-%E2%89%A5%203.10-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-![Light Mode](preview.png)
+<!-- ![Preview](preview.png) -->
 
+## Widgets
 
-## Features
-
-- **Pixel-perfect rounded corners** — pure `QPainter`, no QSS artefact bleeding
-- **Soft drop shadow** — painted as concentric rects with quadratic alpha falloff (faster than `QGraphicsDropShadowEffect`)
-- **Smooth hover** — pill-shaped highlight per item via individual `enterEvent`/`leaveEvent`
-- **Light & dark theme** — toggle with a single `dark_mode` bool
-- **SVG icon support** — pass `QIcon("file.svg")` or use the built-in `svg_to_icon()` helper with theme-aware colorisation
-- **Attach to any widget** — one call to `menu.attach(widget)`, no subclassing needed
-- **Reliable lifecycle** — `Qt.WindowType.Popup` flag handles auto-close on outside click and Escape
-- **Keyboard navigation** — Arrow keys, Enter, Escape
-- **Separators, submenus, disabled items, checkable items**
-- **Zero dependencies** beyond PySide6
-
-## Why not QMenu?
-
-`QMenu` has well-known issues when you try to style it with QSS:
-
-| Problem | QMenu | This widget |
+| File | Class | What it is |
 |---|---|---|
-| Rounded corner artefacts | ✗ Background bleeds through corners | ✓ `QPainter` draws a clean rounded rect |
-| Hover highlight | ✗ QSS `:hover` is unreliable on items | ✓ Individual `enterEvent`/`leaveEvent` per row |
-| Opens only once | ✗ Common bug with styled QMenu | ✓ Popup flag handles lifecycle correctly |
-| Drop shadow | ✗ `QGraphicsDropShadowEffect` is slow | ✓ Concentric rects, ~0.2 ms paint time |
+| `fluent_line_edit.py` | `FluentLineEdit` | `QLineEdit` with edit/display modes + affix warnings |
+| `fluent_text_edit.py` | `FluentTextEdit` | `QTextEdit` with edit/display modes |
+| `fluent_spin_box.py` | `FluentSpinBox`, `FluentDoubleSpinBox` | Spin boxes with chevron steppers |
+| `fluent_combo_box.py` | `FluentComboBox` | Custom combobox — searchable, editable, ghost autocomplete |
+| `fluent_context_menu.py` | `FluentContextMenu` | Bundled dependency — powers the Fluent right-click menu |
 
-## Installation
+Every widget takes a `dark_mode` flag (and exposes it as a property). The line edit, text edit, and combo box show a **bundled Fluent context menu** on right-click — that's why `fluent_context_menu.py` ships alongside them. Beyond that file, zero dependencies other than PySide6.
 
-Single file — just copy `fluent_context_menu.py` into your project:
+> **Note:** These are the standalone versions. The originals in my app also support inline spellchecking (via a private dictionary service); that feature has been removed here so the widgets stay dependency-free.
+
+## Install
+
+Copy the files you want into your project (keep `fluent_context_menu.py` next to the text widgets):
 
 ```bash
-# Or clone the repo
-git clone https://github.com/MaxGroiss/fluent-pyside6-context-menu.git
+git clone https://github.com/MaxGroiss/fluent-inputs-pyside6.git
 ```
 
 **Requires:** PySide6 ≥ 6.7 (tested with 6.10.2), Python ≥ 3.10
 
-## Quick Start
-
-```python
-from fluent_context_menu import FluentContextMenu
-
-# Create menu
-menu = FluentContextMenu(dark_mode=True)
-menu.add_item("Cut",   shortcut="Ctrl+X", callback=lambda: print("cut"))
-menu.add_item("Copy",  shortcut="Ctrl+C", callback=lambda: print("copy"))
-menu.add_item("Paste", shortcut="Ctrl+V", callback=lambda: print("paste"))
-menu.add_separator()
-menu.add_item("Delete", enabled=False)
-
-# Attach to any widget
-menu.attach(my_text_edit)
-```
-
-## Icons
-
-Three ways to add icons:
-
-```python
-from PySide6.QtGui import QIcon, QColor
-from fluent_context_menu import FluentContextMenu, svg_to_icon
-
-menu = FluentContextMenu(dark_mode=True)
-
-# 1. SVG file on disk
-menu.add_item("Save", icon=QIcon("icons/save.svg"))
-
-# 2. Inline SVG string (theme-aware via color parameter)
-my_svg = '<svg xmlns="http://www.w3.org/2000/svg" ...stroke="currentColor"...>...</svg>'
-menu.add_item("Save", icon=svg_to_icon(my_svg, color=QColor(228, 228, 228)))
-
-# 3. Any QIcon (PNG, resource system, etc.)
-menu.add_item("Save", icon=QIcon(":/icons/save.png"))
-```
-
-When using `svg_to_icon()` with `stroke="currentColor"` SVGs, pass `color=` to adapt to your theme. The demo shows this pattern with 15 built-in Lucide icons.
-
-## Reacting to Clicks
-
-Three complementary patterns:
-
-### 1. Callback (fire-and-forget)
-
-```python
-menu.add_item("Save", callback=lambda: document.save())
-```
-
-### 2. Signal (observer pattern)
-
-```python
-def on_action(text: str, item_def: MenuItemDef):
-    print(f"{text} triggered, checked={item_def.checked}")
-
-menu.action_triggered.connect(on_action)
-```
-
-### 3. ItemDef reference (stateful items)
-
-```python
-grid_item = menu.add_item("Show Grid", checkable=True, checked=True)
-
-# Query state any time after user interaction:
-if grid_item.checked:
-    canvas.enable_grid()
-```
-
-## Submenus
-
-```python
-menu = FluentContextMenu(dark_mode=True)
-menu.add_item("Cut", shortcut="Ctrl+X")
-menu.add_separator()
-
-# add_submenu returns a new FluentContextMenu
-format_menu = menu.add_submenu("Format", icon=my_icon)
-format_menu.add_item("Bold",      shortcut="Ctrl+B")
-format_menu.add_item("Italic",    shortcut="Ctrl+I")
-format_menu.add_item("Underline", shortcut="Ctrl+U")
-
-menu.attach(editor)
-```
-
-## Theme Switching
-
-```python
-menu = FluentContextMenu(dark_mode=False)
-
-# Switch at any time — popup is rebuilt automatically
-menu.dark_mode = True
-```
-
-You can also access the built-in theme objects (`DARK`, `LIGHT`) for icon colorisation:
-
-```python
-from fluent_context_menu import DARK, LIGHT, svg_to_icon
-
-theme = DARK if is_dark else LIGHT
-icon = svg_to_icon(my_svg, color=theme.icon_color)
-```
-
-## API Reference
-
-### `FluentContextMenu`
-
-| Method | Description |
-|---|---|
-| `add_item(text, *, callback, icon, shortcut, enabled, checkable, checked)` | Add a menu item. Returns `MenuItemDef`. |
-| `add_separator()` | Add a horizontal line. |
-| `add_submenu(text, *, icon)` | Add a submenu. Returns child `FluentContextMenu`. |
-| `attach(widget)` | Bind context menu to a widget (right-click opens it). |
-| `detach(widget)` | Unbind from a widget. |
-| `show_at(global_pos)` | Show programmatically at screen coordinates. |
-| `clear()` | Remove all items. |
-
-| Property | Description |
-|---|---|
-| `dark_mode` | `bool` — get/set theme. Invalidates popup cache on change. |
-| `action_triggered` | `Signal(str, MenuItemDef)` — emitted on any item click. |
-
-### `MenuItemDef`
-
-Returned by `add_item()`. Mutable fields you can read/write:
-
-| Field | Type | Description |
-|---|---|---|
-| `text` | `str` | Display label |
-| `checked` | `bool` | Current check state (for checkable items) |
-| `enabled` | `bool` | Whether the item is interactive |
-
-### `svg_to_icon(svg_string, size=16, color=None)`
-
-Create a `QIcon` from an SVG string. If `color` is given, replaces `currentColor` with that colour.
-
-## Running the Demo
+## Run the demo
 
 ```bash
 pip install PySide6
 python demo.py
 ```
 
-Right-click the text editor or the coloured panel. Toggle the dark mode checkbox to see theme switching in action.
+Toggle **Dark Mode** to switch every control for screenshots. Right-click any text field for the Fluent context menu.
 
-## Architecture
+---
 
+## FluentLineEdit
+
+A `QLineEdit` that draws its own Fluent border (hover + focus accent) and can switch to a transparent, read-only **display mode** that looks like a plain label.
+
+```python
+from fluent_line_edit import FluentLineEdit
+
+edit = FluentLineEdit(dark_mode=True)
+edit.setText("Editable")
+
+# Label-like, read-only view state (not greyed out)
+edit.display_mode = True
+
+# Warn (red border + accent) when text starts/ends with a forbidden char
+edit.set_invalid_prefixes(["_", "-"])
+print(edit.has_affix_warning)
 ```
-FluentContextMenu (QObject)          ← Public API, manages items & attach
-  └── _MenuPopup (QWidget)           ← Frameless translucent popup
-        ├── _MenuItemWidget (QWidget) ← One per item, custom QPainter
-        ├── _SeparatorWidget (QWidget)
-        ├── _MenuItemWidget
-        └── ...
+
+It's a real `QLineEdit` subclass, so the full `QLineEdit` API still applies.
+
+## FluentTextEdit
+
+A `QTextEdit` with the same edit/display-mode toggle, plus an `editing_finished` signal on focus-out.
+
+```python
+from fluent_text_edit import FluentTextEdit
+
+te = FluentTextEdit(dark_mode=True)
+te.setPlaceholderText("Write something...")
+te.editing_finished.connect(lambda: print("done:", te.toPlainText()))
+te.display_mode = True   # transparent, read-only
 ```
 
-- **No QMenu** — avoids all QSS styling issues
-- **No QListView** — simple `QVBoxLayout` is faster for 5–20 items
-- **No QGraphicsDropShadowEffect** — manual shadow is ~10× faster
-- **Lazy build** — popup widget tree is created on first show, cached, and invalidated on theme/item change
-- **`Qt.WindowType.Popup`** — gives us native auto-dismiss behaviour for free
+## FluentSpinBox / FluentDoubleSpinBox
+
+`QSpinBox` / `QDoubleSpinBox`-compatible spin boxes with chevron buttons, press-and-hold auto-repeat, mouse-wheel and arrow-key stepping, prefix/suffix, special value text, and wrapping.
+
+```python
+from fluent_spin_box import FluentSpinBox, FluentDoubleSpinBox
+
+spin = FluentSpinBox(dark_mode=True)
+spin.setRange(0, 100)
+spin.setValue(42)
+spin.setSuffix(" %")
+spin.valueChanged.connect(print)
+
+dspin = FluentDoubleSpinBox(dark_mode=True)
+dspin.setRange(0.0, 1.0)
+dspin.setSingleStep(0.05)
+dspin.setDecimals(2)
+```
+
+## FluentComboBox
+
+A fully custom combobox — **no `QComboBox`**. Frameless translucent dropdown with rounded corners, per-item hover, and reliable open/close behaviour. Several modes:
+
+```python
+from fluent_combo_box import FluentComboBox
+
+# Basic
+combo = FluentComboBox(dark_mode=True)
+combo.add_items(["Apple", "Banana", "Cherry"])
+combo.add_item("Date", icon=my_icon, data={"id": 4})
+combo.currentIndexChanged.connect(print)
+
+# Searchable — type-to-filter field at the top of the dropdown
+search = FluentComboBox(searchable=True)
+
+# Editable — type a value, with ghost autocomplete (Tab to accept) and an
+# optional "use as search" checkbox; freetext is allowed
+editable = FluentComboBox(editable=True, placeholder="Type or pick...")
+
+# Read-only display mode (shows the value, no dropdown, not greyed out)
+combo.display_mode = True
+```
+
+Highlights: `searchable`, `editable` (ghost autocomplete + freetext), `search_mode` (inline search field as the widget itself), separators, per-item icons/data, invalid prefix/suffix validation, flip-up/flip-down for long lists, and full keyboard navigation.
+
+**Key API:** `add_item()`, `add_items()`, `add_separator()`, `insert_item()`, `remove_item()`, `clear()`, `load_items()`, `set_current_index()`, `set_current_text()`, `find_text()`, `find_data()`; properties `current_index`, `current_text`, `current_data`, `count`, `display_mode`, `dark_mode`.
+**Signals:** `currentIndexChanged(int)`, `currentTextChanged(str)`, `editTextChanged(str)`.
+
+---
 
 ## License
 
